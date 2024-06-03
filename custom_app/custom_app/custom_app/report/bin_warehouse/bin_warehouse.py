@@ -13,21 +13,22 @@ def execute(filters=None):
         {"label": "Bin Quantity", "fieldname": "bin_qty", "fieldtype": "Float"}
     ]
     
-    data = get_bin_stock_data(filters)
+    data = stock_data(filters)
     
     return columns, data
 
-def get_bin_stock_data():
-    bin_data = frappe.db.sql("""
-        SELECT
-            bin.warehouse,
-            bin.item_code,
-            item.item_name,
-            bin.actual_qty as bin_qty
-        FROM
-            `tabBin` bin
-        JOIN
-            `tabItem` item ON bin.item_code = item.name
-        """, as_dict=1)
+@frappe.whitelist()
+def stock_data(warehouse, item_code):
+    # Ensure the fields are indexed
+    frappe.db.sql("""
+        ALTER TABLE tabBin
+        ADD INDEX idx_warehouse_item_code (warehouse, item_code);
+    """)
     
-    return bin_data
+    # Query to retrieve stock data using indexing
+    stck_data = frappe.db.get_value('Bin', {
+        'warehouse': warehouse,
+        'item_code': item_code
+    }, ['actual_qty', 'reserved_qty', 'ordered_qty'], as_dict=True)
+    
+    return stck_data
